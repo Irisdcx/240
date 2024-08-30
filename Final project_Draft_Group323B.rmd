@@ -1,0 +1,169 @@
+---
+title: "Final Project: The Analysis of Hyperlocal Temperature Monitoring Data"
+output: html_document
+---
+
+- Group Member: "Chenxi Dong", "Reece Hoff", "Yuzhen Zhou"
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(scales)
+source("../scripts/viridis.R")
+source("../scripts/ggprob.R")
+```
+
+## Introduction to Project
+New York City is one of the largest cities in the US, which makes it possible for temperatures to vary widely between neighborhoods on the same day. In all seasons of the year, summer weather is often loved by everyone because people like to be outdoors, and at the same time this requires ideal weather and more specifically ideal temperatures. But at the same time, it is important to note that summer heat is also one of the major causes of heat stroke and even death in outdoor activities. In order for people to travel and play safely in the summer, they need to avoid areas where the temperature is usually high, which makes us interested in studying the hot weather of summer in the New York City area. Specifically, we are interested in examining temperatures of a number of neighborhoods in summer and seeing if there are differences between the temperatures in each neighborhood, despite that they are in the same city. If there are differences, these differences may provide suggestions for citizens to travel in the summer.<br>
+
+**Thesis**: This report will look at New York City temperature data from different boroughs and will provide analysis of this data. In addition, this analysis will provide evidence that there are differences in average highest temperatures between one borough and other boroughs. We believe that even though these boroughs are all in one city, there are still some differences between the highest temperatures of the different boroughs.
+
+
+### Project Background
+Weather is one of the most highly studied topics in the world. Since weather is highly studied there is a plethora of data about weather published online. Data about weather is typically collected based on geographic location. For example the dataset we have selected is data about the weather in New York City and the boroughs(unique neighborhoods) within NYC. Temperature is a common measurement of weather and it can be understand as how hot or cold we feel. Temperatures typically fluctuate with the seasons, usually the temperature reach the highest in the summer.  In the summer, since temperature is affected by many combination of factors, there are often differences between daily highest temperatures in different areas. In this project, we examine the temperature of different boroughs in New York City and seek to find any difference between them.
+
+The NYC Parks Department, Mayor’s Office of Resilience and NYC Department of Health and Mental Hygiene recorded street temperatures across a subset of city blocks with the highest risk of heat-related deaths in some of the neighborhoods in four months of summer 2018 and 2019 and organized into the Hyperlocal Temperature Monitoring data set. For this project, we drop some missing data and only use the complete data that have the recorded value of temperature. The Hyperlocal Temperature Monitoring data was collected from temperature sensors that were installed either mounted on street lights or on street trees, and it includes hourly average values in degrees Fahrenheit of four boroughs in NYC, which are Bronx, Brooklyn, Manhattan, and Queens. In addition to the temperature and day variables we used from the data, we found the daily average temperature, daily maximum temperature, and daily minimum temperature. Then we found the monthly average temperature, monthly average daily maximum temperature, and monthly average daily minimum temperature through these three variables. The Hyperlocal Temperature Monitoring data set is an open data that is available on the website. https://data.cityofnewyork.us/dataset/Hyperlocal-Temperature-Monitoring/qdq3-9eqn.
+
+
+### Variables
+
+day_maxtemp: the max temperature detected in a single day. <br>
+
+day_mintemp: the min temperature detected in a single day.<br>
+
+day_avgtemp: the mean temperature detected in a single day.<br>
+
+avg_maxtemp: average max temperature of a month.<br>
+
+avg_mintemp: average min temperature of a month.<br>
+
+sd_maxtemp: standard deviation of max temperature of a month.<br>
+
+sd_mintemp: standard deviation of max temperature of a month.<br>
+
+avg_avgtemp: average temperature of daily mean temperature in a month. <br>
+
+sample_size: number of days in a month that have temperature data.<br>
+
+
+```{r, echo=FALSE}
+ny_temp_day = read_csv("../data/Hyperlocal_Temperature_Monitoring.csv")%>%
+  mutate(Borough = factor(Borough), 
+         Date = mdy(Day),
+         Month = month(Date),
+         Day = day(Date))%>%
+  rename(temp = AirTemp)%>%
+   select(-Latitude, -Longitude, -Sensor.ID, -Install.Type,-ntacode)%>%
+  drop_na()%>%
+  group_by(Borough, Month, Day)%>%
+  summarise(day_maxtemp = max(temp),
+            day_mintemp = min(temp),
+            day_avgtemp = mean(temp))
+
+
+ny_temp_month = ny_temp_day%>%
+  group_by(Borough,Month)%>%
+  summarize(avg_maxtemp = mean(day_maxtemp),
+            avg_mintemp = mean(day_mintemp),
+            sd_maxtemp = sd(day_maxtemp),
+            sd_mintemp = sd(day_mintemp),
+            avg_avgtemp = mean(day_avgtemp),
+            sample_size = n())
+
+ggplot(ny_temp_month)+
+  geom_segment(aes(y = avg_maxtemp, yend = avg_mintemp, x = Borough, xend = Borough,color = Borough),size = 2)+
+  facet_wrap( ~Month, scales = "free")+
+  xlab("Borough")+
+  ylab("Difference")+
+  ggtitle("Difference of Monthly Average Max and Min Temperature", subtitle = "2018-2019 Summer")
+```
+
+### Questions 
+
+#### The estimated highest temperature in summer and early fall for the four boroughs?
+```{r, echo=FALSE}
+highest_summary  = ny_temp_day %>%
+  group_by(Borough)%>%
+  summarise(mu_day_highest = mean(day_maxtemp),
+            sd_day_highest = sd(day_maxtemp),
+            lower_ci = qnorm(1-(1-0.95)/2, mu_day_highest, sd_day_highest),
+            upper_ci = qnorm((1-0.95)/2, mu_day_highest, sd_day_highest))
+highest_summary
+
+ggplot(highest_summary,aes(x = Borough))+
+  geom_point(aes(y =mu_day_highest, size = 2 ))+
+  geom_linerange(aes(ymin =lower_ci, ymax = upper_ci,color = Borough))+
+  ylab("Daily Highest Temperature")+
+  ggtitle("95% Confidence Intervals of the Daily Highest Temperature",subtitle = "From June to October")
+
+```
+
+- Since the sample sizes within 4 months for all four boroughs are larger than 30, the sampling distribution of a point estimate is approximately normal. Therefore, the normal distribution is used to estimate the 95% confidence interval of daily highest temperature in summer and early fall of the four boroughs by the following formula:
+$$
+\text{point estimate} \pm \text{margin of error}
+$$
+- The table summarize the mean daily highest temperature, standard deviation of the daily highest temperature, lower limit of confidence level, and upper limit of confidence level of four sample of four boroughs in summer and early fall, which contains months form June to October.
+In this graph of 95% confidence interval of the average daily highest temperature in four boroughs, the Queens seems to have the lowest daily highest temperature since both the lower limit and upper limit are less than other borough's. Therefore, we want to know the difference of the highest daily temperature between Queens and other three boroughs.
+
+
+#### What is observed difference of Queens' and the other three boroughs' average highest temperature in summer and early fall? 
+```{r, include=FALSE}
+difference_summary = ny_temp_day %>%
+  mutate(Borough_group = case_when(Borough == "Queens" ~ "Queens", Borough!= "Queens" ~ "not Queens"))%>%
+  group_by(Borough_group)%>%
+  summarise(mu_day_highest = mean(day_maxtemp),
+            sd_day_highest = sd(day_maxtemp),
+            lower_ci = qnorm(1-(1-0.95)/2, mu_day_highest, sd_day_highest),
+            upper_ci = qnorm((1-0.95)/2, mu_day_highest, sd_day_highest))
+difference = difference_summary %>% select(mu_day_highest) %>%summarise(dif = abs(diff(mu_day_highest)))%>%pull(dif)
+difference 
+```
+- The observed difference of the highest temperature in summer and early fall between Queens and other three boroughs is 3.516241 degree Fahrenheit.
+
+#### Assume there isn't difference of the average highest temperature in summer and early fall between Queens and other three boroughs. Here are our hypothesis:
+- $H_0: \mu_{\text{Queens}} = \mu_{\text{Others}}$
+- $H_a: \mu_{\text{Queens}} \not= \mu_{\text{Others}}$
+
+#### Does the observed bserved difference of Queens' and the other three boroughs' highest temperature significant with the significance level of 0.05?
+```{r,include=FALSE}
+difference_test = ny_temp_day %>%
+  mutate(Borough_group = case_when(Borough == "Queens" ~ "Queens", Borough!= "Queens" ~ "not Queens"))%>%
+  group_by(Borough_group)%>%
+  summarise(mu_day_highest = mean(day_maxtemp),
+            sd_day_highest = sd(day_maxtemp),
+            n = n(),
+            mu_se = sd_day_highest/sqrt(n))
+se_difference = difference_test%>% select(mu_se)%>% summarise(se_dif =sqrt(sum(mu_se^2)))%>%pull(se_dif)
+test_stat = difference /se_difference
+p_value = pnorm(test_stat,lower.tail = F)*2  
+p_value
+```
+- The p-value under the null hypothesis is 2.32928e-05, is less than 0.05, so we reject the null hypothesis
+
+```{r, echo=FALSE}
+gnorm(0,se_difference)+
+  geom_norm_fill(0,se_difference,fill = "pink") +
+  geom_vline(xintercept = difference*c(1,-1), color = "blue", linetype = "solid") +
+  geom_vline(xintercept = qnorm(1-(1-0.95)/2,0,se_difference)*c(1,-1), color = "red", linetype = "dashed") +
+  ggtitle("Difference of the Average Highest Temperature in Summer and Early Fall") +
+  xlab("Average Highest Temperature Difference") 
+  
+```
+
+- The graph is constructed under the null hypothesis, which is a normal distribution that constructed based on the data which sample size is larger than 30. The x-axis in the graph represent the value of the difference between the average highest temperature of Queens and the average highest temperature of other three boroughs. In this way we can observe if the average highest temperature of Queens is different from that of other boroughs'. And in this graph, the p_value is represented by the areas that outside two solid blue lines; the critical values at 0.05 significance level are showed by the two red dashed lines.
+
+
+
+
+## Discussion
+We rejected the null in our hypothesis test therefore  the average highest temperature in summer and early fall between Queens and other three boroughs is not the same. This helps support our hypothesis by showing that although only Queens shows a average highest temperature difference there is a difference. <br>
+A potential short coming of our analysis is we only have data from 5 months of the year therefore our data is limited to the summer and early fall months so our analysis was limited to only analyzing the temperature in those months. A way to solve this short coming is to collect more data over a longer period of time.<br>
+A future direction for this analysis is we could do similar analysis for different cities across the such as San Francisco. Another direction we could go using this data is examine if the type of sensor affected the temperature reading or if a certain type of sensor consistently read significantly higher or lower temperatures.Additionally it may he helpful to collect rainfall data about the  different boroughs and we can perform similar analysis to what we did in this project.<br>
+
+In conclusion in our analysis we saw that the Queens borough has a different average highest temperatrure in the years from 2018-2019 than the other boroughs in New York. This is supported rejecting the null hypothesus in the hypothesis test we performed (see above).
+
+
+
+^[Hyperlocal Temperature Monitoring: https://data.cityofnewyork.us/dataset/Hyperlocal-Temperature-Monitoring/qdq3-9eqn]
